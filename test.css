@@ -1,0 +1,8 @@
+*{margin: 0;padding: 0;}
+*{box-sizing: border-box;}
+*::after{box-sizing: border-box;}
+*::before{box-sizing: border-box;}
+
+.container {position: fixed;left:0;right:0;top:0;bottom:0;display:flex;justify-content:center;align-items:center;}
+.canvas {background:rgb(50,50,50);}
+

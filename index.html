@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>测试</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" href="./test.css">
+  </head>
+
+  <body>
+    <div class="container">
+      <canvas class="canvas"></canvas>
+    </div>
+
+    <script>
+      let giantCanvas = function () {
+        let // 画布宽度
+          cWidth = 0,
+          // 画布高度
+          cHeight = 0,
+          // 图片宽度
+          iWidth = 0,
+          // 图片高度
+          iHeight = 0,
+          // 画布元素
+          canvas = null,
+          // 画布上下文
+          ctx = null,
+          // 图片拖拽至边缘的最小显示，防止图片被拖出画布用的？
+          appearSize = 100,
+          // 缩放步进
+          scaleStep = 0.1,
+          // 最小缩放比例
+          minScale = 0.0008,
+          // 最大缩放比例
+          maxScale = 32,
+          // 画布点击函数
+          onClick = null;
+
+        let // 图片在画布中的横坐标
+          x = 0,
+          // 图片在画布中的纵坐标
+          y = 0,
+          // 拖动过程中，鼠标前一次移动位置的横坐标
+          prevX = 0,
+          // 拖动过程中，鼠标前一次移动位置的纵坐标
+          prevY = 0,
+          // 缩放比例
+          scale = 1,
+          // 图片元素
+          image = null,
+          // ★★ 存储图像数据的画布
+          bCanvas = null,
+          // 存储图像数据画布的上下文
+          bCtx = null;
+
+
+        function initial(options) {
+          // console.log("options", options);
+          options.canvas.width = 0.7 * document.documentElement.clientWidth;
+          options.canvas.height = document.documentElement.clientHeight;
+          // 获取canvas上下文
+          ctx = options.canvas.getContext("2d");
+          // 获取画布宽度和高度
+          cWidth = options.canvas.clientWidth;
+          cHeight = options.canvas.clientHeight;
+
+          onClick = options.onClick || function () { };
+          canvas = options.canvas;
+          canvas.addEventListener("mousedown", handleMouseDown);
+          canvas.addEventListener("mousewheel", handleMouseWheel);
+        }
+
+        function setImage(src) {
+          image = new Image();
+          image.src = src;
+
+          image.addEventListener("load", () => {
+            const rate = image.height / image.width;
+            iWidth = 0.7 * document.documentElement.clientWidth;;
+            iHeight = iWidth * rate;
+
+            bCanvas = document.createElement("canvas");
+            bCanvas.width = iWidth;
+            bCanvas.height = iHeight;
+            bCanvas.style.display = "none";
+            bCtx = bCanvas.getContext("2d");
+            bCtx.drawImage(image, 0, 0, iWidth, iHeight);
+            document.body.appendChild(bCanvas);
+
+            scale = 1;
+            setXY(0, 0);
+          });
+        }
+
+        // 防止图片被拖出画布
+        function setXY(vx, vy) {
+          if (vx < appearSize - iWidth * scale) {
+            x = appearSize - iWidth * scale;
+          } else if (vx > cWidth - appearSize) {
+            x = cWidth - appearSize;
+          } else {
+            x = vx;
+          }
+
+          if (vy < appearSize - iHeight * scale) {
+            y = appearSize - iHeight * scale;
+          } else if (vy > cHeight - appearSize) {
+            y = cHeight - appearSize;
+          } else {
+            y = vy;
+          }
+          update();
+        }
+
+        function update() {
+          ctx.clearRect(0, 0, cWidth, cHeight);
+          // nCtx.clearRect(0, 0, nWidth, nWidth*iHeight/iWidth)
+
+          // 将导航器方框区域绘制到画布。
+          // Debug：这里ie有个bug，第二个和第三个参数不能小于0
+          ctx.drawImage(
+            bCanvas,
+            -x / scale,
+            -y / scale,
+            cWidth / scale,
+            cHeight / scale,
+            0,
+            0,
+            cWidth,
+            cHeight
+          );
+        }
+
+        // 拖动
+        function handleDrag(e) {
+          var p = calculateChange(e, canvas);
+          var offsetX = p.x - prevX;
+          var offsetY = p.y - prevY;
+          setXY(x + offsetX, y + offsetY);
+          prevX = p.x;
+          prevY = p.y;
+        }
+
+        /* 计算鼠标事件相对容器的位置 */
+        function calculateChange(e, container, skip) {
+          const containerWidth = container.clientWidth;
+          const containerHeight = container.clientHeight;
+          const x = typeof e.pageX === "number" ? e.pageX : e.touches[0].pageX;
+          const y = typeof e.pageY === "number" ? e.pageY : e.touches[0].pageY;
+          let left =
+            x - (container.getBoundingClientRect().left + window.pageXOffset);
+          let top = y - (container.getBoundingClientRect().top + window.pageYOffset);
+
+          if (left < 0) {
+            left = 0;
+          } else if (left > containerWidth) {
+            left = containerWidth;
+          }
+          if (top < 0) {
+            top = 0;
+          } else if (top > containerHeight) {
+            top = containerHeight;
+          }
+
+          return {
+            x: left,
+            y: top
+          };
+        }
+
+        function handleMouseDown(e) {
+          var prevP = calculateChange(e, canvas);
+          var ix = Math.floor((prevP.x - x) / scale);
+          var iy = Math.floor((prevP.y - y) / scale);
+          prevX = prevP.x;
+          prevY = prevP.y;
+
+          window.addEventListener("mousemove", handleDrag);
+          window.addEventListener("mouseup", handleMouseUp);
+
+          var colorData = bCtx.getImageData(ix, iy, 1, 1).data;
+        }
+
+        function handleMouseUp(e) {
+          window.removeEventListener("mousemove", handleDrag);
+          window.removeEventListener("mousemove", handleMouseUp);
+        }
+
+        /* 滚动缩放！！！ */
+        function handleMouseWheel(e) {
+          var wd = e.wheelDelta;
+          var newScale = scale * (1 + (wd > 0 ? scaleStep : -scaleStep));
+          newScale = newScale < minScale ? minScale : newScale;
+          newScale = newScale > maxScale ? maxScale : newScale;
+          if (newScale !== scale) {
+            var p = calculateChange(e, canvas);
+            var newX = ((x - p.x) * newScale) / scale + p.x;
+            var newY = ((y - p.y) * newScale) / scale + p.y;
+            scale = newScale;
+            setXY(newX, newY);
+          }
+        }
+        return {
+          initial,
+          setImage
+        };
+      };
+
+      let gc = new giantCanvas()
+
+      // 初始化画布
+      gc.initial({
+        canvas: document.querySelector('.canvas'),
+      })
+
+      // 设置图片
+      gc.setImage('./test.jpg')
+
+    </script>
+  </body>
+
+</html>
